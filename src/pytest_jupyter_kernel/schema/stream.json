@@ -1,0 +1,14 @@
+{
+  "type" : "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "enum": ["stdin", "stderr"]
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": ["name", "text"]
+}

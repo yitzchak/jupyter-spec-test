@@ -1,0 +1,107 @@
+{
+  "type" : "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error", "aborted"]
+    },
+    "execution_count": {
+      "type": "integer"
+    },
+    "payload": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": ["source"],
+        "allOf": [{
+          "if": {
+            "properties": {
+              "source": {
+                "const": "page"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object"
+              },
+              "start": {
+                "type": "integer"
+              }
+            },
+            "required": ["data", "start"],
+            "additionalProperties": false
+          }
+        }, {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "set_next_input"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "replace": {
+                "type": "boolean"
+              }
+            },
+            "required": ["text", "replace"],
+            "additionalProperties": false
+          }
+        }, {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "edit"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "filename": {
+                "type": "string"
+              },
+              "line_number": {
+                "type": "integer"
+              }
+            },
+            "required": ["filename", "line_number"],
+            "additionalProperties": false
+          }
+        }, {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "ask_exit"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "keepkernel": {
+                "type": "boolean"
+              }
+            },
+            "required": ["keepkernel"],
+            "additionalProperties": false
+          }
+        }]
+      }
+    },
+    "user_expressions": {
+      "type": "object"
+    }
+  },
+  "required": ["status", "execution_count"],
+  "additionalProperties": false
+}

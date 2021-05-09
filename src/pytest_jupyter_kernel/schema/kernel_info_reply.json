@@ -1,0 +1,18 @@
+{
+  "type" : "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "protocol_version": {
+      "type": "string"
+    },
+    "implementation": {
+      "type": "string"
+    },
+    "implementation_version": {
+      "type": "string"
+    }
+  }
+}
