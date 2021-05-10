@@ -80,7 +80,8 @@
       "required": [
         "protocol_version", "implementation", "implementation_version",
         "language_info", "banner"
-      ]
+      ],
+      "additionalProperties": false
     }
   }, {
     "if": {
@@ -105,9 +106,9 @@
           }
         }
       },
-      "required": ["ename", "evalue", "traceback"]
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
     }
   }],
-  "required": ["status"],
-  "additionalProperties": false
+  "required": ["status"]
 }

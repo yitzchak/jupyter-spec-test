@@ -16,10 +16,6 @@
     },
     "then": {
       "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["ok", "error"]
-        },
         "execution_count": {
           "type": "integer"
         },
@@ -117,7 +113,8 @@
           "type": "object"
         }
       },
-      "required": ["execution_count"]
+      "required": ["execution_count"],
+      "additionalProperties": false
     }
   }, {
     "if": {
@@ -142,9 +139,9 @@
           }
         }
       },
-      "required": ["ename", "evalue", "traceback"]
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
     }
   }],
-  "required": ["status"],
-  "additionalProperties": false
+  "required": ["status"]
 }

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "execution_count": {
+      "type": "integer"
+    }
+  },
+  "required": ["data", "metadata", "execution_count"],
+  "additionalProperties": false
+}

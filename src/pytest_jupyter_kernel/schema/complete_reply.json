@@ -1,0 +1,64 @@
+{
+  "type" : "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    }
+  },
+  "anyOf": [{
+    "if": {
+      "properties": {
+        "status": {
+          "const": "ok"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": "string"
+        },
+        "cursor_start": {
+          "type": "integer"
+        },
+        "cursor_end": {
+          "type": "integer"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "required": ["found", "cursor_start", "cursor_end", "metadata"],
+      "additionalProperties": false
+    }
+  }, {
+    "if": {
+      "properties": {
+        "status": {
+          "const": "error"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "ename": {
+          "type": "string"
+        },
+        "evalue": {
+          "type": "string"
+        },
+        "traceback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
+    }
+  }],
+  "required": ["status"]
+}

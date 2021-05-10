@@ -1,0 +1,19 @@
+{
+  "type" : "object",
+  "properties": {
+    "ename": {
+      "type": "string"
+    },
+    "evalue": {
+      "type": "string"
+    },
+    "traceback": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["ename", "evalue", "traceback"],
+  "additionalProperties": false
+}

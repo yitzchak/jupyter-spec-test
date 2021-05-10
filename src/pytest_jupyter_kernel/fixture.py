@@ -24,16 +24,6 @@ class Kernel(object):
         self.client = self.kernel.client()
         self.client.start_channels()
 
-        # msg = self.client.get_iopub_msg()
-        # self.validate_message(msg, 'iopub')
-        # assert msg['header'].get('msg_type') == 'status'
-        # assert msg['content'].get('status') == 'starting'
-
-        # msg = self.client.get_iopub_msg()
-        # self.validate_message(msg, 'iopub')
-        # assert msg['header'].get('msg_type') == 'status'
-        # assert msg['content'].get('status') == 'idle'
-
     def shutdown(self):
         self.client.shutdown()
 
@@ -93,22 +83,21 @@ class Kernel(object):
             elif shell_socket in events:
                 msg = self.client.get_shell_msg()
                 self.validate_message(msg, 'shell')
-                parent_msg_id = msg["parent_header"].get("msg_id")
+                parent_msg_id = msg["parent_header"]["msg_id"]
                 assert self.pending[parent_msg_id] == "shell", "Received response on shell channel for a control message."
                 replies[parent_msg_id] = msg
             elif control_socket in events:
                 msg = self.client.get_control_msg()
                 self.validate_message(msg, 'control')
-                parent_msg_id = msg["parent_header"].get("msg_id")
+                parent_msg_id = msg["parent_header"]["msg_id"]
                 assert self.pending[parent_msg_id] == "control", "Received response on control channel for a shell message."
                 replies[parent_msg_id] = msg
             elif iopub_socket in events:
                 msg = self.client.get_iopub_msg()
-                print(msg)
-                parent_msg_id = msg["parent_header"].get("msg_id")
-                if parent_msg_id is None:
-                    continue
                 self.validate_message(msg, 'iopub')
+                if msg["parent_header"] is None:
+                    continue
+                parent_msg_id = msg["parent_header"]["msg_id"]
                 if parent_msg_id not in messages:
                     assert (msg["header"]["msg_type"] == "status"
                         and msg["content"]["execution_state"] == "busy")

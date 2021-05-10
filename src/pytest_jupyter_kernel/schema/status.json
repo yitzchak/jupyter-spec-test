@@ -1,0 +1,11 @@
+{
+  "type" : "object",
+  "properties": {
+    "execution_state": {
+      "type": "string",
+      "enum": ["busy", "idle", "starting"]
+    }
+  },
+  "required": ["execution_state"],
+  "additionalProperties": false
+}

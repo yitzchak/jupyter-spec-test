@@ -7,7 +7,6 @@
     }
   },
   "required": ["status"],
-  "additionalProperties": false,
   "if": {
     "properties": {
       "status": {
@@ -21,6 +20,10 @@
         "type": "string"
       }
     },
-    "required": ["indent"]
+    "required": ["indent"],
+    "additionalProperties": false
+  },
+  "else": {
+    "additionalProperties": false
   }
 }
