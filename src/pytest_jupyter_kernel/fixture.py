@@ -31,14 +31,11 @@ class Kernel(object):
         self.kernel.interrupt_kernel()
 
     def validate_message(self, msg, source):
-        parent_msg_id = msg["parent_header"]["msg_id"]
         msg_type = msg['header']['msg_type']
-        print(msg_type)
-        print(msg['parent_header']['msg_id'])
-        print(msg_type in self.schema)
-        assert parent_msg_id in self.pending, "Unknown parent message id."
         if msg_type in self.schema:
             jsonschema.validate(msg['content'], self.schema[msg_type])
+        if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
+            assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 
     def read_replies(self, timeout=None, stdin_hook=None, keep_status=False):
         messages = {}
@@ -95,7 +92,7 @@ class Kernel(object):
             elif iopub_socket in events:
                 msg = self.client.get_iopub_msg()
                 self.validate_message(msg, 'iopub')
-                if msg["parent_header"] is None:
+                if msg["parent_header"] is None or "msg_id" not in msg["parent_header"]:
                     continue
                 parent_msg_id = msg["parent_header"]["msg_id"]
                 if parent_msg_id not in messages:
@@ -133,7 +130,9 @@ class Kernel(object):
                                          **kwargs)] = "shell"
 
     def kernel_info(self):
-        self.pending[self.client.kernel_info()] = "shell"
+        msg_id = self.client.kernel_info()
+        self.pending[msg_id] = "shell"
+        return msg_id
 
     def comm_info(self, target_name = None):
         self.pending[self.client.comm_info(target_name = target_name)] = "shell"
@@ -162,8 +161,7 @@ def test_execute(jupyter_kernel):
 
 
 def test_kernel_info(jupyter_kernel):
-    jupyter_kernel.kernel_info()
+    msg_id = jupyter_kernel.kernel_info()
     replies, messages = jupyter_kernel.read_replies(timeout = 10)
-    print(replies)
-    print(messages)
-    assert 1 == 0    
+    assert replies[msg_id]["msg_type"] == "kernel_info_reply"
+    assert replies[msg_id]["content"]["status"] == "ok"    

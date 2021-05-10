@@ -1,10 +1,55 @@
 {
   "type" : "object",
   "properties": {
-    "restart": {
-      "type": "boolean"
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
     }
   },
-  "required": ["restart"],
-  "additionalProperties": false
+  "anyOf": [{
+    "if": {
+      "properties": {
+        "status": {
+          "const": "ok"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "restart": {
+          "type": "boolean"
+        }
+      },
+      "required": ["restart"],
+      "additionalProperties": false
+    }
+  }, {
+    "if": {
+      "properties": {
+        "status": {
+          "const": "error"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "ename": {
+          "type": "string"
+        },
+        "evalue": {
+          "type": "string"
+        },
+        "traceback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
+    }
+  }],
+  "required": ["status"]
 }
+

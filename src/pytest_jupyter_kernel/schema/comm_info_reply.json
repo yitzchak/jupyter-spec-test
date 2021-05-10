@@ -1,20 +1,64 @@
 {
-  "type": "object",
+  "type" : "object",
   "properties": {
-    "comms": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "target_name": {
-            "type": "string"
-          }
-        },
-        "required": ["target_name"],
-        "additionalProperties": false
-      }
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
     }
   },
-  "required": ["comms"],
-  "additionalProperties": false
+  "anyOf": [{
+    "if": {
+      "properties": {
+        "status": {
+          "const": "ok"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "comms": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "target_name": {
+                "type": "string"
+              }
+            },
+            "required": ["target_name"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["comms"],
+      "additionalProperties": false
+    }
+  }, {
+    "if": {
+      "properties": {
+        "status": {
+          "const": "error"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "ename": {
+          "type": "string"
+        },
+        "evalue": {
+          "type": "string"
+        },
+        "traceback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
+    }
+  }],
+  "required": ["status"]
 }

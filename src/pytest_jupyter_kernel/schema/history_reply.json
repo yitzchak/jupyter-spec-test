@@ -1,29 +1,74 @@
 {
-  "type": "object",
+  "type" : "object",
   "properties": {
-    "history": {
-      "type": "array",
-      "items": {
-        "type": "array",
-        "items": [{
-          "type": "string"
-        }, {
-          "type": "string"
-        }, {
-          "anyOf": [{
-            "type": "string"
-          }, {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    }
+  },
+  "anyOf": [{
+    "if": {
+      "properties": {
+        "status": {
+          "const": "ok"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "history": {
+          "type": "array",
+          "items": {
             "type": "array",
             "items": [{
               "type": "string"
             }, {
               "type": "string"
+            }, {
+              "anyOf": [{
+                "type": "string"
+              }, {
+                "type": "array",
+                "items": [{
+                  "type": "string"
+                }, {
+                  "type": "string"
+                }]
+              }]
             }]
-          }]
-        }]
-      }
+          }
+        }
+      },
+      "required": ["history"],
+      "additionalProperties": false
     }
-  },
-  "required": ["history"],
-  "additionalProperties": false
+  }, {
+    "if": {
+      "properties": {
+        "status": {
+          "const": "error"
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "ename": {
+          "type": "string"
+        },
+        "evalue": {
+          "type": "string"
+        },
+        "traceback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
+    }
+  }],
+  "required": ["status"]
 }
+
