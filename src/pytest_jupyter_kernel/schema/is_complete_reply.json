@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["complete", "incomplete", "invalid", "unknown"]
+    }
+  },
+  "required": ["status"],
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "status": {
+        "const": "incomplete"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "indent": {
+        "type": "string"
+      }
+    },
+    "required": ["indent"]
+  }
+}
