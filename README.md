@@ -1,1 +1,1 @@
-# jupyter-spec-test
+# pytest-jupyter-kernel
