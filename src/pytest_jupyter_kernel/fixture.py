@@ -33,9 +33,11 @@ class Kernel(object):
         if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
             assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 
-    def read_replies(self, timeout=None, stdin_hook=None, keep_status=False):
+    def read_replies(self, timeout = None, stdin_hook = None,
+                     keep_status = False):
         messages = {}
         replies = {}
+        idle = {}
 
         if timeout is not None:
             deadline = time.monotonic() + timeout
@@ -77,12 +79,16 @@ class Kernel(object):
                 parent_msg_id = msg["parent_header"]["msg_id"]
                 assert self.pending[parent_msg_id] == "shell", "Received response on shell channel for a control message."
                 replies[parent_msg_id] = msg
+                if parent_msg_id in idle:
+                    del self.pending[parent_msg_id]
             elif control_socket in events:
                 msg = self.client.get_control_msg()
                 self.validate_message(msg, 'control')
                 parent_msg_id = msg["parent_header"]["msg_id"]
                 assert self.pending[parent_msg_id] == "control", "Received response on control channel for a shell message."
                 replies[parent_msg_id] = msg
+                if parent_msg_id in idle:
+                    del self.pending[parent_msg_id]
             elif iopub_socket in events:
                 msg = self.client.get_iopub_msg()
                 self.validate_message(msg, 'iopub')
@@ -97,7 +103,9 @@ class Kernel(object):
                     msg["header"]["msg_type"] == "status"
                     and msg["content"]["execution_state"] == "idle"
                 ):
-                    del self.pending[parent_msg_id]
+                    idle[parent_msg_id] = True
+                    if parent_msg_id in replies:
+                        del self.pending[parent_msg_id]
                     if keep_status:
                         messages[parent_msg_id].append(msg)
                 else:
@@ -128,6 +136,14 @@ class Kernel(object):
         self.pending[msg_id] = "shell"
         return msg_id
 
+    def test_kernel_info(self, timeout = None):
+        msg_id = self.kernel_info()
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "kernel_info_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+
     def comm_info(self, target_name = None):
         self.pending[self.client.comm_info(target_name = target_name)] = "shell"
 
@@ -155,7 +171,6 @@ def test_execute(jupyter_kernel):
 
 
 def test_kernel_info(jupyter_kernel):
-    msg_id = jupyter_kernel.kernel_info()
-    replies, messages = jupyter_kernel.read_replies(timeout = 10)
-    assert replies[msg_id]["msg_type"] == "kernel_info_reply"
-    assert replies[msg_id]["content"]["status"] == "ok"    
+    reply, messages = jupyter_kernel.test_kernel_info(timeout = 10)
+    assert reply['content']['implementation'] == 'common-lisp'
+
