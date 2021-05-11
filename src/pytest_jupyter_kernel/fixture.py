@@ -11,14 +11,10 @@ class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
         self.pending = {}
-        with open(os.path.join(os.path.dirname(__file__), 'message.json')) as f:
-            self.schema = json.load(f)
-        # self.schema = {}
-        # root = os.path.join(os.path.dirname(__file__), 'schema')
-        # for file in os.listdir(root):
-        #     name, ext = os.path.splitext(os.path.basename(file))
-        #     with open(os.path.join(root, file)) as f:
-        #         self.schema[name] = json.load(f)
+        with open(os.path.join(os.path.dirname(__file__), 'message-schema.json')) as f:
+            message_schema = json.load(f)
+            jsonschema.Draft7Validator.check_schema(message_schema)
+            self.message_validator = jsonschema.Draft7Validator(message_schema)
 
     def start(self):
         self.kernel.start_kernel()
@@ -33,9 +29,7 @@ class Kernel(object):
 
     def validate_message(self, msg, source):
         msg_type = msg['header']['msg_type']
-        jsonschema.validate(msg, self.schema)
-        # if msg_type in self.schema:
-        #     jsonschema.validate(msg['content'], self.schema[msg_type])
+        self.message_validator.validate(msg)
         if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
             assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 

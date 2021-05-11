@@ -1,0 +1,698 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$defs": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "ename": {
+          "type": "string"
+        },
+        "evalue": {
+          "type": "string"
+        },
+        "traceback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["ename", "evalue", "traceback"],
+      "additionalProperties": false
+    },
+    "error_status": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "error"
+        }
+      },
+      "$ref": "#/$defs/error",
+      "required": ["status", "ename", "evalue", "traceback"]
+    }
+  },
+  "oneOf": [{
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "clear_output"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "required": ["wait"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "comm_close"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "comm_id": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": ["comm_id", "data"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "comm_info_reply"
+      },
+      "content": {
+        "type" : "object",
+        "oneOf": [{
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "comms": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "target_name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["target_name"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["status", "comms"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "comm_msg"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "comm_id": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": ["comm_id", "data"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "comm_open"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "comm_id": {
+            "type": "string"
+          },
+          "target_name": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": ["comm_id", "target_name", "data"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "complete_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "cursor_start": {
+              "type": "integer"
+            },
+            "cursor_end": {
+              "type": "integer"
+            },
+            "metadata": {
+              "type": "object"
+            }
+          },
+          "required": ["status", "matches", "cursor_start", "cursor_end", "metadata"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "enum": ["display_data", "update_display_data"]
+      },
+      "content": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "transient": {
+            "type": "object"
+          }
+        },
+        "required": ["data", "metadata"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "error"
+      },
+      "content": {
+        "type": "object",
+        "$ref": "#/$defs/error"
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "execute_input"
+      },
+      "content": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "execution_count": {
+            "type": "integer"
+          }
+        },
+        "required": ["code", "execution_count"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "execute_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "execution_count": {
+              "type": "integer"
+            },
+            "payload": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": ["source"],
+                "allOf": [{
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "page"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "data": {
+                        "type": "object"
+                      },
+                      "start": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": ["data", "start"],
+                    "additionalProperties": false
+                  }
+                }, {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "set_next_input"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "replace": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["text", "replace"],
+                    "additionalProperties": false
+                  }
+                }, {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "edit"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "filename": {
+                        "type": "string"
+                      },
+                      "line_number": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": ["filename", "line_number"],
+                    "additionalProperties": false
+                  }
+                }, {
+                  "if": {
+                    "properties": {
+                      "source": {
+                        "const": "ask_exit"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "keepkernel": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["keepkernel"],
+                    "additionalProperties": false
+                  }
+                }]
+              }
+            },
+            "user_expressions": {
+              "type": "object"
+            }
+          },
+          "required": ["status", "execution_count"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "execute_result"
+      },
+      "content": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "execution_count": {
+            "type": "integer"
+          }
+        },
+        "required": ["data", "metadata", "execution_count"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "history_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "history": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": [{
+                  "type": "string"
+                }, {
+                  "type": "string"
+                }, {
+                  "anyOf": [{
+                    "type": "string"
+                  }, {
+                    "type": "array",
+                    "items": [{
+                      "type": "string"
+                    }, {
+                      "type": "string"
+                    }]
+                  }]
+                }]
+              }
+            }
+          },
+          "required": ["status", "history"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "input_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "inspect_reply"
+      },
+      "content": {
+        "oneOf": [{
+        "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "found": {
+              "type": "boolean"
+            },
+            "data": {
+              "type": "object"
+            },
+            "metadata": {
+              "type": "object"
+            }
+          },
+          "required": ["found", "data", "metadata"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "interrupt_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            }
+          },
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "is_complete_reply"
+      },
+      "content": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["complete", "incomplete", "invalid", "unknown"]
+          }
+        },
+        "required": ["status"],
+        "if": {
+          "properties": {
+            "status": {
+              "const": "incomplete"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "indent": {
+              "type": "string"
+            }
+          },
+          "required": ["indent"],
+          "additionalProperties": false
+        },
+        "else": {
+          "additionalProperties": false
+        }
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "kernel_info_reply"
+      },
+      "content": {
+        "type" : "object",
+        "oneOf": [{
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "protocol_version": {
+              "type": "string"
+            },
+            "implementation": {
+              "type": "string"
+            },
+            "implementation_version": {
+              "type": "string"
+            },
+            "language_info": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "mimetype": {
+                  "type": "string"
+                },
+                "file_extension": {
+                  "type": "string"
+                },
+                "pygments_lexer": {
+                  "type": "string"
+                },
+                "codemirror_mode": {
+                  "anyOf": [{
+                    "type": "string"
+                  }, {
+                    "type": "object"
+                  }]
+                },
+                "nbconvert_exporter": {
+                  "type": "string"
+                }
+              },
+              "required": ["name", "version", "mimetype", "file_extension"],
+              "additionalProperties": false
+            },
+            "banner": {
+              "type": "string"
+            },
+            "help_links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": ["text", "url"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "status", "protocol_version", "implementation",
+            "implementation_version", "language_info", "banner"
+          ],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "shutdown_reply"
+      },
+      "content": {
+        "oneOf": [{
+          "type" : "object",
+          "properties": {
+            "status": {
+              "const": "ok"
+            },
+            "restart": {
+              "type": "boolean"
+            }
+          },
+          "required": ["status", "restart"],
+          "additionalProperties": false
+        }, {
+          "$ref": "#/$defs/error_status"
+        }]
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "status"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "execution_state": {
+            "enum": ["busy", "idle", "starting"]
+          }
+        },
+        "required": ["execution_state"],
+        "additionalProperties": false
+      }
+    }
+  }, {
+    "type": "object",
+    "required": ["msg_type", "content"],
+    "properties": {
+      "msg_type": {
+        "const": "stream"
+      },
+      "content": {
+        "type" : "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["stdin", "stderr"]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": ["name", "text"]
+      }
+    }
+  }]
+}
