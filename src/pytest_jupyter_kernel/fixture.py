@@ -11,13 +11,14 @@ class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
         self.pending = {}
-        self.schema = {}
-        root = os.path.join(os.path.dirname(__file__), 'schema')
-        for file in os.listdir(root):
-            name, ext = os.path.splitext(os.path.basename(file))
-            with open(os.path.join(root, file)) as f:
-                self.schema[name] = json.load(f)
-        print(self.schema)
+        with open(os.path.join(os.path.dirname(__file__), 'message.json')) as f:
+            self.schema = json.load(f)
+        # self.schema = {}
+        # root = os.path.join(os.path.dirname(__file__), 'schema')
+        # for file in os.listdir(root):
+        #     name, ext = os.path.splitext(os.path.basename(file))
+        #     with open(os.path.join(root, file)) as f:
+        #         self.schema[name] = json.load(f)
 
     def start(self):
         self.kernel.start_kernel()
@@ -32,8 +33,9 @@ class Kernel(object):
 
     def validate_message(self, msg, source):
         msg_type = msg['header']['msg_type']
-        if msg_type in self.schema:
-            jsonschema.validate(msg['content'], self.schema[msg_type])
+        jsonschema.validate(msg, self.schema)
+        # if msg_type in self.schema:
+        #     jsonschema.validate(msg['content'], self.schema[msg_type])
         if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
             assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 
@@ -68,8 +70,6 @@ class Kernel(object):
             events = dict(poller.poll(timeout_ms))
 
             if not events:
-                print(messages)
-                print(replies)
                 raise TimeoutError("Timeout waiting for output")
 
             if stdin_socket in events:

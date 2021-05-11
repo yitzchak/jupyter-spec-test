@@ -1,0 +1,15 @@
+, {
+    "if": {
+      "properties": {
+        "msg_type": {
+          "const": ""
+        }
+      }
+    },
+    "then": {
+      "properties": {
+        "content": {
+        }
+      }
+    }
+  }
