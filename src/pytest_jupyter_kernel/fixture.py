@@ -21,12 +21,6 @@ class Kernel(object):
         self.client = self.kernel.client()
         self.client.start_channels()
 
-    def shutdown(self):
-        self.client.shutdown()
-
-    def interrupt(self):
-        self.kernel.interrupt_kernel()
-
     def validate_message(self, msg, source):
         msg_type = msg['header']['msg_type']
         self.message_validator.validate(msg)
@@ -73,7 +67,7 @@ class Kernel(object):
                 self.validate_message(msg, 'stdin')
                 assert stdin_hook is not None, "Input request received but no hook available."
                 stdin_hook(msg)
-            elif shell_socket in events:
+            if shell_socket in events:
                 msg = self.client.get_shell_msg()
                 self.validate_message(msg, 'shell')
                 parent_msg_id = msg["parent_header"]["msg_id"]
@@ -81,7 +75,7 @@ class Kernel(object):
                 replies[parent_msg_id] = msg
                 if parent_msg_id in idle:
                     del self.pending[parent_msg_id]
-            elif control_socket in events:
+            if control_socket in events:
                 msg = self.client.get_control_msg()
                 self.validate_message(msg, 'control')
                 parent_msg_id = msg["parent_header"]["msg_id"]
@@ -89,7 +83,7 @@ class Kernel(object):
                 replies[parent_msg_id] = msg
                 if parent_msg_id in idle:
                     del self.pending[parent_msg_id]
-            elif iopub_socket in events:
+            if iopub_socket in events:
                 msg = self.client.get_iopub_msg()
                 self.validate_message(msg, 'iopub')
                 if msg["parent_header"] is None or "msg_id" not in msg["parent_header"]:
@@ -113,28 +107,106 @@ class Kernel(object):
 
         return replies, messages
 
+    def shutdown(self):
+        msg_id = self.client.shutdown()
+        self.pending[msg_id] = "control"
+        return msg_id
+
+    def interrupt(self):
+        msg = self.client.session.msg("interrupt_request", {})
+        self.client.control_channel.send(msg)
+        msg_id = msg["header"]["msg_id"]
+        self.pending[msg_id] = "control"
+        return msg_id
+
     def execute(self, code, silent = False, store_history = True,
-        user_expressions = None, allow_stdin = False, stop_on_error = True):
-        self.pending[self.client.execute(code, silent=silent,
-            store_history=store_history, user_expressions=user_expressions,
-            allow_stdin=allow_stdin, stop_on_error=stop_on_error)] = "shell"
+                user_expressions = None, allow_stdin = False,
+                stop_on_error = True):
+        msg_id = self.client.execute(code, silent=silent,
+                                     store_history=store_history, user_expressions=user_expressions,
+                                     allow_stdin=allow_stdin, stop_on_error=stop_on_error)
+        self.pending[msg_id] = "shell"
+        return msg_id
 
     def complete(self, code, cursor_pos = None):
-        self.pending[self.client.complete(code, cursor_pos=cursor_pos)] = "shell"
+        msg_id = self.client.complete(code, cursor_pos=cursor_pos)
+        self.pending[msg_id] = "shell"
+        return msg_id
 
     def inspect(self, code, cursor_pos = None, detail_level = 0):
-        self.pending[self.client.inspect(code, cursor_pos=cursor_pos,
-                                         detail_level=detail_level)] = "shell"
+        msg_id = self.client.inspect(code, cursor_pos=cursor_pos,
+                                     detail_level=detail_level)
+        self.pending[msg_id] = "shell"
+        return msg_id
 
     def history(self, raw = True, output = False, hist_access_type = "range", **kwargs):
-        self.pending[self.client.history(raw = raw, output = output,
-                                         history_access_type = history_access_type,
-                                         **kwargs)] = "shell"
+        msg_id = self.client.history(raw = raw, output = output,
+                                     history_access_type = history_access_type,
+                                    **kwargs)
+        self.pending[msg_id] = "shell"
+        return msg_id
 
     def kernel_info(self):
         msg_id = self.client.kernel_info()
         self.pending[msg_id] = "shell"
         return msg_id
+
+    def comm_info(self, target_name = None):
+        msg_id = self.client.comm_info(target_name = target_name)
+        self.pending[msg_id] = "shell"
+        return msg_id
+
+    def is_complete(self, code):
+        msg_id = self.client.is_complete(code)
+        self.pending[msg_id] = "shell"
+        return msg_id
+
+    def input(self, string):
+        self.client.input(string)
+
+    def test_execute(self, code, silent = False, store_history = True,
+        user_expressions = None, stop_on_error = True,
+        timeout = None, stdin_hook = None, keep_status = False):
+        msg_id = self.execute(code, silent = silent,
+                              store_history = store_history,
+                              user_expressions = user_expressions,
+                              stop_on_error = stop_on_error,
+                              allow_stdin = stdin_hook is not None)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "execute_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        assert any(msg['msg_type'] == 'execute_input' and msg['content']['code'] == code for msg in messages[msg_id])
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+
+    def test_complete(self, code, cursor_pos = None, timeout = None):
+        msg_id = self.complete(code, cursor_pos = cursor_pos)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "complete_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+
+    def test_inspect(self, code, cursor_pos = None, detail_level = 0,
+                     timeout = None):
+        msg_id = self.inspect(code, cursor_pos = cursor_pos,
+                              detail_level = detail_level)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "inspect_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+
+    def test_history(self, raw = True, output = False, timeout = None,
+                     hist_access_type = "range", **kwargs):
+        msg_id = self.history(raw = raw, output = output,
+                              hist_access_type = hist_access_type,
+                              **kwargs)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "history_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
     def test_kernel_info(self, timeout = None):
         msg_id = self.kernel_info()
@@ -144,33 +216,41 @@ class Kernel(object):
                 and replies[msg_id]["content"]["status"] == "ok")
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def comm_info(self, target_name = None):
-        self.pending[self.client.comm_info(target_name = target_name)] = "shell"
+    def test_comm_info(self, target_name = None, timeout = None):
+        msg_id = self.comm_info(target_name = target_name)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "comm_info_reply"
+                and replies[msg_id]["content"]["status"] == "ok")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def is_complete(self, code):
-        self.pending[self.client.is_complete(code)] = "shell"
+    def test_is_complete(self, code, timeout = None):
+        msg_id = self.is_complete(code)
+        replies, messages = self.read_replies(timeout = timeout)
+        assert (len(replies) == 1 and msg_id in replies
+                and replies[msg_id]["msg_type"] == "is_complete_reply")
+        return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def input(self, string):
-        self.client.input(string)
 
-
-@pytest.fixture
-def jupyter_kernel():
-    kernel = Kernel("common-lisp_sbcl")
+@pytest.fixture(params=["common-lisp_sbcl"])
+def jupyter_kernel(request):
+    kernel = Kernel(request.param)
     kernel.start()
     yield kernel
     kernel.shutdown()
 
 
 def test_execute(jupyter_kernel):
-    jupyter_kernel.execute("(1+ 7)")
-    replies, messages = jupyter_kernel.read_replies(timeout = 10)
-    print(replies)
-    print(messages)
-    assert 1 == 0, "wibble"
+    reply, messages = jupyter_kernel.test_execute("(1+ 7)", timeout = 10)
+    assert any(msg['msg_type'] == 'execute_result' and msg['content']['data']['text/plain'] == '8' for msg in messages), "wibble"
 
 
 def test_kernel_info(jupyter_kernel):
     reply, messages = jupyter_kernel.test_kernel_info(timeout = 10)
     assert reply['content']['implementation'] == 'common-lisp'
+
+
+def test_comm_info(jupyter_kernel):
+    reply, messages = jupyter_kernel.test_comm_info(timeout = 10)
+
 

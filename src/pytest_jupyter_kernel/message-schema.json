@@ -1,6 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$defs": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "msg_id": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "date": {
+        },
+        "msg_type": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": ["msg_id", "session", "username", "date", "msg_type", "version"],
+      "additionalProperties": false
+    },
     "error": {
       "type": "object",
       "properties": {
@@ -31,6 +55,39 @@
       "required": ["status", "ename", "evalue", "traceback"]
     }
   },
+  "type": "object",
+  "properties": {
+    "header": {
+      "$ref": "#/$defs/header"
+    },
+    "parent_header": {
+      "oneOf": [{
+        "$ref": "#/$defs/header"
+      }, {
+        "additionalProperties": false
+      }]
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "content": {
+      "type": "object"
+    },
+    "buffers": {
+      "type": "array"
+    },
+    "msg_id": {
+      "type": "string"
+    },
+    "msg_type": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "header", "parent_header", "metadata", "content", "buffers", "msg_id",
+    "msg_type"
+  ],
+  "additionalProperties": false,
   "oneOf": [{
     "type": "object",
     "required": ["msg_type", "content"],
@@ -551,8 +608,16 @@
       "msg_type": {
         "const": "kernel_info_reply"
       },
+      "parent_header": {
+        "type": "object",
+        "properties": {
+          "msg_type": {
+            "const": "kernel_info_request"
+          }
+        }
+      },
       "content": {
-        "type" : "object",
+        "type": "object",
         "oneOf": [{
           "properties": {
             "status": {
