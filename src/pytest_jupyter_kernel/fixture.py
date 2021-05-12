@@ -58,6 +58,7 @@ class Kernel(object):
                 timeout_ms = int(1000 * timeout)
 
             events = dict(poller.poll(timeout_ms))
+            print(events)
 
             if not events:
                 raise TimeoutError("Timeout waiting for output")
@@ -253,4 +254,11 @@ def test_kernel_info(jupyter_kernel):
 def test_comm_info(jupyter_kernel):
     reply, messages = jupyter_kernel.test_comm_info(timeout = 10)
 
+
+def test_is_complete(jupyter_kernel):
+    reply, messages = jupyter_kernel.test_is_complete("(fu bar)", timeout = 10)
+    assert reply['content']['status'] == 'complete'
+
+    reply, messages = jupyter_kernel.test_is_complete("(fu bar", timeout = 10)
+    assert reply['content']['status'] == 'incomplete'
 

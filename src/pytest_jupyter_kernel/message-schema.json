@@ -90,7 +90,6 @@
   "additionalProperties": false,
   "oneOf": [{
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "clear_output"
@@ -108,7 +107,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "comm_close"
@@ -129,7 +127,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "comm_info_reply"
@@ -164,7 +161,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "comm_msg"
@@ -209,7 +205,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "complete_reply"
@@ -246,7 +241,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "enum": ["display_data", "update_display_data"]
@@ -282,7 +276,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "execute_input"
@@ -421,7 +414,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "execute_result"
@@ -445,7 +437,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "history_reply"
@@ -489,7 +480,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "input_reply"
@@ -514,7 +504,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "inspect_reply"
@@ -545,7 +534,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "interrupt_reply"
@@ -566,44 +554,37 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "is_complete_reply"
       },
       "content": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": ["complete", "incomplete", "invalid", "unknown"]
-          }
-        },
-        "required": ["status"],
-        "if": {
+        "oneOf": [{
+          "type": "object",
           "properties": {
             "status": {
               "const": "incomplete"
-            }
-          }
-        },
-        "then": {
-          "properties": {
+            },
             "indent": {
               "type": "string"
             }
           },
-          "required": ["indent"],
+          "required": ["status", "indent"],
           "additionalProperties": false
-        },
-        "else": {
+        }, {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": ["complete", "invalid", "unknown"]
+            }
+          },
+          "required": ["status"],
           "additionalProperties": false
-        }
+        }]
       }
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "kernel_info_reply"
@@ -696,7 +677,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "shutdown_reply"
@@ -739,7 +719,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "stream"
