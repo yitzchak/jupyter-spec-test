@@ -24,7 +24,7 @@ setup(
     long_description=read('README.md'),
     packages=['pytest_jupyter_kernel'],
     python_requires='>=3.5',
-    install_requires=['pytest>=3.5.0'],
+    install_requires=['pytest>=3.5.0','jsonschema>=3.2.0', 'jupyter-client>=6.1.0','pyzmq>=22.0.0'],
     include_package_data=True,
     classifiers=[
         'Development Status :: 4 - Beta',
