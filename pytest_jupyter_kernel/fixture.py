@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import json
 import jsonschema
 import jupyter_client
@@ -5,6 +7,19 @@ import os
 import pytest
 import time
 import zmq
+
+
+# def pytest_addoption(parser):
+#     group = parser.getgroup('jupyter_kernel')
+#     group.addoption(
+#         '--foo',
+#         action='store',
+#         dest='dest_foo',
+#         default='2021',
+#         help='Set the value for the fixture "bar".'
+#     )
+
+#     parser.addini('HELLO', 'Dummy pytest.ini setting')
 
 
 class Kernel(object):

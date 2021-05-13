@@ -1,0 +1,10 @@
+site_name: pytest-jupyter_kernel
+site_description: A Jupyter kernel fixture for pytest
+site_author: Tarn W. Burton
+
+theme: readthedocs
+
+repo_url: https://github.com/yitzchak/pytest-jupyter_kernel
+
+pages:
+- Home: index.md
