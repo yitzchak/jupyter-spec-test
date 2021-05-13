@@ -1,5 +1,6 @@
 include LICENSE.md
 include README.md
+include pytest_jupyter_kernel/message-schema.json
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
