@@ -701,7 +701,6 @@
     }
   }, {
     "type": "object",
-    "required": ["msg_type", "content"],
     "properties": {
       "msg_type": {
         "const": "status"
@@ -727,15 +726,14 @@
         "type" : "object",
         "properties": {
           "name": {
-            "type": "string",
-            "enum": ["stdin", "stderr"]
+            "enum": ["stdout", "stderr"]
           },
           "text": {
             "type": "string"
           }
         },
-        "additionalProperties": false,
-        "required": ["name", "text"]
+        "required": ["name", "text"],
+        "additionalProperties": false
       }
     }
   }]

@@ -258,7 +258,7 @@ class Kernel(object):
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
 
-@pytest.fixture(params=["common-lisp_sbcl"])
+@pytest.fixture
 def jupyter_kernel(request):
     kernel = Kernel(request.param)
     kernel.start()
