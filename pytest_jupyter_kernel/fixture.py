@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import json
 import jsonschema
 import jupyter_client
@@ -7,19 +5,6 @@ import os
 import pytest
 import time
 import zmq
-
-
-# def pytest_addoption(parser):
-#     group = parser.getgroup('jupyter_kernel')
-#     group.addoption(
-#         '--foo',
-#         action='store',
-#         dest='dest_foo',
-#         default='2021',
-#         help='Set the value for the fixture "bar".'
-#     )
-
-#     parser.addini('HELLO', 'Dummy pytest.ini setting')
 
 
 class Kernel(object):
@@ -258,10 +243,12 @@ class Kernel(object):
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
 
-@pytest.fixture
+@pytest.fixture(params=['python3'], scope='module')
 def jupyter_kernel(request):
-    kernel = Kernel(request.param)
-    kernel.start()
-    yield kernel
-    kernel.shutdown()
-
+    try:
+        kernel = Kernel(request.param)
+        kernel.start()
+        yield kernel
+        kernel.shutdown()
+    except jupyter_client.kernelspec.NoSuchKernel:
+        pytest.skip(f'Skipping tests for {request.param} kernel since it is not present.')
