@@ -11,7 +11,7 @@ class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
         self.pending = {}
-        with open(os.path.join(os.path.dirname(__file__), 'message-schema.json')) as f:
+        with open(os.path.join(os.path.dirname(__file__), "message-schema.json")) as f:
             message_schema = json.load(f)
             jsonschema.Draft7Validator.check_schema(message_schema)
             self.message_validator = jsonschema.Draft7Validator(message_schema)
@@ -23,13 +23,12 @@ class Kernel(object):
         self.client.wait_for_ready()
 
     def validate_message(self, msg, source):
-        msg_type = msg['header']['msg_type']
+        msg_type = msg["header"]["msg_type"]
         self.message_validator.validate(msg)
-        #if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
+        # if msg["parent_header"] is not None and "msg_id" in msg["parent_header"]:
         #    assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 
-    def read_replies(self, timeout = None, stdin_hook = None,
-                     keep_status = False):
+    def read_replies(self, timeout=None, stdin_hook=None, keep_status=False):
         messages = {}
         replies = {}
         idle = {}
@@ -66,42 +65,61 @@ class Kernel(object):
 
             if stdin_socket in events:
                 msg = self.client.get_stdin_msg()
-                self.validate_message(msg, 'stdin')
-                if ("msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending):
-                    assert stdin_hook is not None, "Input request received but no hook available."
+                self.validate_message(msg, "stdin")
+                if (
+                    "msg_id" in msg["parent_header"]
+                    and msg["parent_header"]["msg_id"] in self.pending
+                ):
+                    assert (
+                        stdin_hook is not None
+                    ), "Input request received but no hook available."
                     stdin_hook(msg)
             if shell_socket in events:
                 msg = self.client.get_shell_msg()
-                self.validate_message(msg, 'shell')
-                if ("msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending):
+                self.validate_message(msg, "shell")
+                if (
+                    "msg_id" in msg["parent_header"]
+                    and msg["parent_header"]["msg_id"] in self.pending
+                ):
                     parent_msg_id = msg["parent_header"]["msg_id"]
-                    assert self.pending[parent_msg_id] == "shell", "Received response on shell channel for a control message."
+                    assert (
+                        self.pending[parent_msg_id] == "shell"
+                    ), "Received response on shell channel for a control message."
                     replies[parent_msg_id] = msg
                     if parent_msg_id in idle:
                         del self.pending[parent_msg_id]
             if control_socket in events:
                 msg = self.client.get_control_msg()
-                self.validate_message(msg, 'control')
-                if ("msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending):
+                self.validate_message(msg, "control")
+                if (
+                    "msg_id" in msg["parent_header"]
+                    and msg["parent_header"]["msg_id"] in self.pending
+                ):
                     parent_msg_id = msg["parent_header"]["msg_id"]
-                    assert self.pending[parent_msg_id] == "control", "Received response on control channel for a shell message."
+                    assert (
+                        self.pending[parent_msg_id] == "control"
+                    ), "Received response on control channel for a shell message."
                     replies[parent_msg_id] = msg
                     if parent_msg_id in idle:
                         del self.pending[parent_msg_id]
             if iopub_socket in events:
                 msg = self.client.get_iopub_msg()
-                self.validate_message(msg, 'iopub')
-                if ("msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending):
-                    if msg["parent_header"] is None or "msg_id" not in msg["parent_header"]:
+                self.validate_message(msg, "iopub")
+                if (
+                    "msg_id" in msg["parent_header"]
+                    and msg["parent_header"]["msg_id"] in self.pending
+                ):
+                    if (
+                        msg["parent_header"] is None
+                        or "msg_id" not in msg["parent_header"]
+                    ):
                         continue
                     parent_msg_id = msg["parent_header"]["msg_id"]
                     if parent_msg_id not in messages:
-                        assert (msg["header"]["msg_type"] == "status"
-                            and msg["content"]["execution_state"] == "busy")
+                        assert (
+                            msg["header"]["msg_type"] == "status"
+                            and msg["content"]["execution_state"] == "busy"
+                        )
                         messages[parent_msg_id] = [msg] if keep_status else []
                     elif (
                         msg["header"]["msg_type"] == "status"
@@ -129,30 +147,42 @@ class Kernel(object):
         self.pending[msg_id] = "control"
         return msg_id
 
-    def execute(self, code, silent = False, store_history = True,
-                user_expressions = None, allow_stdin = False,
-                stop_on_error = True):
-        msg_id = self.client.execute(code, silent=silent,
-                                     store_history=store_history, user_expressions=user_expressions,
-                                     allow_stdin=allow_stdin, stop_on_error=stop_on_error)
+    def execute(
+        self,
+        code,
+        silent=False,
+        store_history=True,
+        user_expressions=None,
+        allow_stdin=False,
+        stop_on_error=True,
+    ):
+        msg_id = self.client.execute(
+            code,
+            silent=silent,
+            store_history=store_history,
+            user_expressions=user_expressions,
+            allow_stdin=allow_stdin,
+            stop_on_error=stop_on_error,
+        )
         self.pending[msg_id] = "shell"
         return msg_id
 
-    def complete(self, code, cursor_pos = None):
+    def complete(self, code, cursor_pos=None):
         msg_id = self.client.complete(code, cursor_pos=cursor_pos)
         self.pending[msg_id] = "shell"
         return msg_id
 
-    def inspect(self, code, cursor_pos = None, detail_level = 0):
-        msg_id = self.client.inspect(code, cursor_pos=cursor_pos,
-                                     detail_level=detail_level)
+    def inspect(self, code, cursor_pos=None, detail_level=0):
+        msg_id = self.client.inspect(
+            code, cursor_pos=cursor_pos, detail_level=detail_level
+        )
         self.pending[msg_id] = "shell"
         return msg_id
 
-    def history(self, raw = True, output = False, hist_access_type = "range", **kwargs):
-        msg_id = self.client.history(raw = raw, output = output,
-                                     history_access_type = history_access_type,
-                                    **kwargs)
+    def history(self, raw=True, output=False, hist_access_type="range", **kwargs):
+        msg_id = self.client.history(
+            raw=raw, output=output, history_access_type=history_access_type, **kwargs
+        )
         self.pending[msg_id] = "shell"
         return msg_id
 
@@ -161,8 +191,8 @@ class Kernel(object):
         self.pending[msg_id] = "shell"
         return msg_id
 
-    def comm_info(self, target_name = None):
-        msg_id = self.client.comm_info(target_name = target_name)
+    def comm_info(self, target_name=None):
+        msg_id = self.client.comm_info(target_name=target_name)
         self.pending[msg_id] = "shell"
         return msg_id
 
@@ -174,76 +204,152 @@ class Kernel(object):
     def input(self, string):
         self.client.input(string)
 
-    def execute_read_reply(self, code, silent = False, store_history = True,
-                           user_expressions = None, stop_on_error = True,
-                           timeout = None, stdin_hook = None,
-                           keep_status = False):
-        msg_id = self.execute(code, silent = silent,
-                              store_history = store_history,
-                              user_expressions = user_expressions,
-                              stop_on_error = stop_on_error,
-                              allow_stdin = stdin_hook is not None)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "execute_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
-        assert any(msg['msg_type'] == 'execute_input' and msg['content']['code'] == code for msg in messages[msg_id])
+    def execute_read_reply(
+        self,
+        code,
+        silent=False,
+        store_history=True,
+        user_expressions=None,
+        stop_on_error=True,
+        timeout=None,
+        stdin_hook=None,
+        keep_status=False,
+    ):
+        msg_id = self.execute(
+            code,
+            silent=silent,
+            store_history=store_history,
+            user_expressions=user_expressions,
+            stop_on_error=stop_on_error,
+            allow_stdin=stdin_hook is not None,
+        )
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "execute_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
+        assert any(
+            msg["msg_type"] == "execute_input" and msg["content"]["code"] == code
+            for msg in messages[msg_id]
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def complete_read_reply(self, code, cursor_pos = None, timeout = None):
-        msg_id = self.complete(code, cursor_pos = cursor_pos)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "complete_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
+    def complete_read_reply(
+        self,
+        code,
+        cursor_pos=None,
+        timeout=None,
+        matches=None,
+        cursor_start=None,
+        cursor_end=None,
+    ):
+        msg_id = self.complete(code, cursor_pos=cursor_pos)
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "complete_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
+        if matches is not None:
+            for match in matches:
+                assert any(
+                    text == match["text"]
+                    for text in replies[msg_id]["content"]["matches"]
+                ), f'Expected a match of "{match["text"]}" in matches.'
+                if "type" in match:
+                    assert (
+                        "_jupyter_types_experimental"
+                        in replies[msg_id]["content"]["metadata"]
+                    ), 'Match types expected in reply, but no key "_jupyter_types_experimental" found in metadata.'
+                    t = next(
+                        (
+                            t
+                            for t in replies[msg_id]["content"]["metadata"][
+                                "_jupyter_types_experimental"
+                            ]
+                            if t["text"] == match["text"]
+                        ),
+                        None,
+                    )
+                    assert (
+                        t is not None
+                    ), 'Expected a type entry for the text "{match["text"]}".'
+                    assert (
+                        t["type"] == match["type"]
+                    ), f'Expected the type of "{match["text"]}" to be "{match["type"]}" but found "{t["type"]}" instead.'
+        if cursor_start is not None:
+            assert (
+                replies[msg_id]["content"]["cursor_start"] == cursor_start
+            ), f'Expected a cursor_start of {cursor_start} but received {replies[msg_id]["content"]["cursor_start"]}.'
+        if cursor_end is not None:
+            assert (
+                replies[msg_id]["content"]["cursor_end"] == cursor_end
+            ), f'Expected a cursor_end of {cursor_end} but received {replies[msg_id]["content"]["cursor_end"]}.'
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def inspect_read_reply(self, code, cursor_pos = None, detail_level = 0,
-                     timeout = None):
-        msg_id = self.inspect(code, cursor_pos = cursor_pos,
-                              detail_level = detail_level)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "inspect_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
+    def inspect_read_reply(self, code, cursor_pos=None, detail_level=0, timeout=None):
+        msg_id = self.inspect(code, cursor_pos=cursor_pos, detail_level=detail_level)
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "inspect_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def history_read_reply(self, raw = True, output = False, timeout = None,
-                     hist_access_type = "range", **kwargs):
-        msg_id = self.history(raw = raw, output = output,
-                              hist_access_type = hist_access_type,
-                              **kwargs)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "history_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
+    def history_read_reply(
+        self, raw=True, output=False, timeout=None, hist_access_type="range", **kwargs
+    ):
+        msg_id = self.history(
+            raw=raw, output=output, hist_access_type=hist_access_type, **kwargs
+        )
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "history_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def kernel_info_read_reply(self, timeout = None):
+    def kernel_info_read_reply(self, timeout=None):
         msg_id = self.kernel_info()
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "kernel_info_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "kernel_info_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def comm_info_read_reply(self, target_name = None, timeout = None):
-        msg_id = self.comm_info(target_name = target_name)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "comm_info_reply"
-                and replies[msg_id]["content"]["status"] == "ok")
+    def comm_info_read_reply(self, target_name=None, timeout=None):
+        msg_id = self.comm_info(target_name=target_name)
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "comm_info_reply"
+            and replies[msg_id]["content"]["status"] == "ok"
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
-    def is_complete_read_reply(self, code, timeout = None):
+    def is_complete_read_reply(self, code, timeout=None):
         msg_id = self.is_complete(code)
-        replies, messages = self.read_replies(timeout = timeout)
-        assert (len(replies) == 1 and msg_id in replies
-                and replies[msg_id]["msg_type"] == "is_complete_reply")
+        replies, messages = self.read_replies(timeout=timeout)
+        assert (
+            len(replies) == 1
+            and msg_id in replies
+            and replies[msg_id]["msg_type"] == "is_complete_reply"
+        )
         return replies[msg_id], messages[msg_id] if msg_id in messages else []
 
 
-@pytest.fixture(params=['python3'], scope='module')
+@pytest.fixture(params=["python3"], scope="module")
 def jupyter_kernel(request):
     try:
         kernel = Kernel(request.param)
@@ -251,4 +357,6 @@ def jupyter_kernel(request):
         yield kernel
         kernel.shutdown()
     except jupyter_client.kernelspec.NoSuchKernel:
-        pytest.skip(f'Skipping tests for {request.param} kernel since it is not present.')
+        pytest.skip(
+            f"Skipping tests for {request.param} kernel since it is not present."
+        )
