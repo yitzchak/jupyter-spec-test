@@ -7,6 +7,12 @@ import time
 import zmq
 
 
+def dictionary_matches(needle, haystack):
+    return all(
+        key in haystack and haystack[key] == value for key, value in needle.items()
+    )
+
+
 class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
@@ -143,6 +149,9 @@ class Kernel(object):
         keep_status=False,
         expected_reply_status=None,
         expected_reply_type=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
         expected_stdout=None,
         expected_stderr=None,
     ):
@@ -162,6 +171,18 @@ class Kernel(object):
             assert (
                 my_reply["content"]["status"] == expected_reply_status
             ), f'Expected a reply status of "{expected_reply_status}" but received "{my_reply["content"]["status"]}" instead.'
+        if expected_ename is not None:
+            assert (
+                my_reply["content"]["ename"] == expected_ename
+            ), f'Expected a reply ename of "{expected_ename}" but received "{my_reply["content"]["ename"]}" instead.'
+        if expected_evalue is not None:
+            assert (
+                my_reply["content"]["evalue"] == expected_evalue
+            ), f'Expected a reply evalue of "{expected_evalue}" but received "{my_reply["content"]["evalue"]}" instead.'
+        if expected_traceback is not None:
+            assert (
+                my_reply["content"]["traceback"] == expected_traceback
+            ), f'Expected a reply traceback of "{expected_traceback}" but received "{my_reply["content"]["traceback"]}" instead.'
         if expected_stdout is not None:
             assert any(
                 msg["msg_type"] == "stream"
@@ -258,8 +279,13 @@ class Kernel(object):
         stdin_hook=None,
         keep_status=False,
         expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
         expected_stdout=None,
         expected_stderr=None,
+        expected_execute_results=None,
+        expected_display_data=None,
     ):
         msg_id = self.execute(
             code,
@@ -274,13 +300,49 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="execute_reply",
             expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
             expected_stdout=expected_stdout,
             expected_stderr=expected_stderr,
         )
         assert any(
             msg["msg_type"] == "execute_input" and msg["content"]["code"] == code
             for msg in messages
-        ), 'Expected an execute_input message with the correct code content.'
+        ), "Expected an execute_input message with the correct code content."
+        if expected_execute_results is not None:
+            execute_results = [
+                msg["content"]
+                for msg in messages
+                if msg["msg_type"] == "execute_result"
+            ]
+            assert len(execute_results) == len(
+                expected_execute_results
+            ), f"Expected to receive {len(expected_execute_results)} execute_result messages but received {len(execute_results)} instead."
+            for (value, expected_value) in zip(
+                execute_results, expected_execute_results
+            ):
+                assert dictionary_matches(
+                    expected_value, value
+                ), f"Expected an execute_results of {expected_value} but received {value} instead."
+        if expected_display_data is not None:
+            display_data = [
+                msg["content"] for msg in messages if msg["msg_type"] == "display_data"
+            ]
+            assert len(display_data) == len(
+                expected_display_data
+            ), f"Expected to receive {len(expected_display_data)} display_data messages but received {len(display_data)} instead."
+            for (value, expected_value) in zip(display_data, expected_display_data):
+                assert dictionary_matches(
+                    expected_value, value
+                ), f"Expected a display_data of {expected_value} but received {value} instead."
+        if expected_display_data is not None:
+            for display_data in expected_display_data:
+                assert any(
+                    msg["msg_type"] == "display_data"
+                    and dictionary_matches(display_data, msg["content"])
+                    for msg in messages
+                ), "Did not receive the expected display_data."
         return reply, messages
 
     def complete_read_reply(
@@ -292,6 +354,9 @@ class Kernel(object):
         expected_cursor_start=None,
         expected_cursor_end=None,
         expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
         expected_stdout=None,
         expected_stderr=None,
     ):
@@ -301,6 +366,9 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="complete_reply",
             expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
             expected_stdout=expected_stdout,
             expected_stderr=expected_stderr,
         )
@@ -339,63 +407,135 @@ class Kernel(object):
             ), f'Expected a cursor_end of {expected_cursor_end} but received {reply["content"]["cursor_end"]}.'
         return reply, messages
 
-    def inspect_read_reply(self, code, cursor_pos=None, detail_level=0, timeout=None):
+    def inspect_read_reply(
+        self,
+        code,
+        cursor_pos=None,
+        detail_level=0,
+        timeout=None,
+        expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
+        expected_stdout=None,
+        expected_stderr=None,
+    ):
         msg_id = self.inspect(code, cursor_pos=cursor_pos, detail_level=detail_level)
-        replies, messages = self.read_replies(timeout=timeout)
-        assert (
-            len(replies) == 1
-            and msg_id in replies
-            and replies[msg_id]["msg_type"] == "inspect_reply"
-            and replies[msg_id]["content"]["status"] == "ok"
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_reply_type="inspect_reply",
+            expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
+            expected_stdout=expected_stdout,
+            expected_stderr=expected_stderr,
         )
-        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+        return reply, messages
 
     def history_read_reply(
-        self, raw=True, output=False, timeout=None, hist_access_type="range", **kwargs
+        self,
+        raw=True,
+        output=False,
+        timeout=None,
+        hist_access_type="range",
+        expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
+        expected_stdout=None,
+        expected_stderr=None,
+        **kwargs,
     ):
         msg_id = self.history(
             raw=raw, output=output, hist_access_type=hist_access_type, **kwargs
         )
-        replies, messages = self.read_replies(timeout=timeout)
-        assert (
-            len(replies) == 1
-            and msg_id in replies
-            and replies[msg_id]["msg_type"] == "history_reply"
-            and replies[msg_id]["content"]["status"] == "ok"
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_reply_type="history_reply",
+            expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
+            expected_stdout=expected_stdout,
+            expected_stderr=expected_stderr,
         )
-        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+        return reply, messages
 
-    def kernel_info_read_reply(self, timeout=None):
+    def kernel_info_read_reply(
+        self,
+        timeout=None,
+        expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
+        expected_stdout=None,
+        expected_stderr=None,
+    ):
         msg_id = self.kernel_info()
-        replies, messages = self.read_replies(timeout=timeout)
-        assert (
-            len(replies) == 1
-            and msg_id in replies
-            and replies[msg_id]["msg_type"] == "kernel_info_reply"
-            and replies[msg_id]["content"]["status"] == "ok"
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_reply_type="kernel_info_reply",
+            expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
+            expected_stdout=expected_stdout,
+            expected_stderr=expected_stderr,
         )
-        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+        return reply, messages
 
-    def comm_info_read_reply(self, target_name=None, timeout=None):
+    def comm_info_read_reply(
+        self,
+        target_name=None,
+        timeout=None,
+        expected_reply_status=None,
+        expected_ename=None,
+        expected_evalue=None,
+        expected_traceback=None,
+        expected_stdout=None,
+        expected_stderr=None,
+    ):
         msg_id = self.comm_info(target_name=target_name)
-        replies, messages = self.read_replies(timeout=timeout)
-        assert (
-            len(replies) == 1
-            and msg_id in replies
-            and replies[msg_id]["msg_type"] == "comm_info_reply"
-            and replies[msg_id]["content"]["status"] == "ok"
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_reply_type="comm_info_reply",
+            expected_reply_status=expected_reply_status,
+            expected_ename=expected_ename,
+            expected_evalue=expected_evalue,
+            expected_traceback=expected_traceback,
+            expected_stdout=expected_stdout,
+            expected_stderr=expected_stderr,
         )
-        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+        return reply, messages
 
-    def is_complete_read_reply(self, code, timeout=None):
+    def is_complete_read_reply(
+        self,
+        code,
+        timeout=None,
+        expected_reply_status=None,
+        expected_indent=None,
+        expected_stdout=None,
+        expected_stderr=None,
+    ):
         msg_id = self.is_complete(code)
-        replies, messages = self.read_replies(timeout=timeout)
-        assert (
-            len(replies) == 1
-            and msg_id in replies
-            and replies[msg_id]["msg_type"] == "is_complete_reply"
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_reply_type="is_complete_reply",
+            expected_reply_status=expected_reply_status,
+            expected_stdout=expected_stdout,
+            expected_stderr=expected_stderr,
         )
-        return replies[msg_id], messages[msg_id] if msg_id in messages else []
+        if expected_indent is not None:
+            assert (
+                reply["content"]["indent"] == expected_indent
+            ), f'Expected an reply with an indent of "{expected_indent}" but received "{reply["content"]["indent"]}" instead.'
+        return reply, messages
 
 
 @pytest.fixture(params=["python3"], scope="module")
