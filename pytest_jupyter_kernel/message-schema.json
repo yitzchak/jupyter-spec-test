@@ -41,18 +41,26 @@
           }
         }
       },
-      "required": ["ename", "evalue", "traceback"],
-      "additionalProperties": false
+      "required": ["ename", "evalue", "traceback"]
     },
     "error_status": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "const": "error"
-        }
-      },
-      "$ref": "#/$defs/error",
-      "required": ["status", "ename", "evalue", "traceback"]
+      "allOf": [{
+        "$ref": "#/$defs/error"
+      }, {
+        "properties": {
+          "status": {
+            "const": "error"
+          }
+        },
+        "required": ["status"]
+      }]
+    },
+    "error_reply": {
+      "allOf": [{
+        "$ref": "#/$defs/error_status"
+      }, {
+        "additionalProperties": false
+      }]
     }
   },
   "type": "object",
@@ -314,90 +322,63 @@
             "payload": {
               "type": "array",
               "items": {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string"
-                  }
-                },
-                "required": ["source"],
-                "allOf": [{
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "page"
-                      }
+                "oneOf": [{
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "const": "page"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "start": {
+                      "type": "integer"
                     }
                   },
-                  "then": {
-                    "properties": {
-                      "data": {
-                        "type": "object"
-                      },
-                      "start": {
-                        "type": "integer"
-                      }
-                    },
-                    "required": ["data", "start"],
-                    "additionalProperties": false
-                  }
+                  "required": ["source", "data", "start"],
+                  "additionalProperties": false
                 }, {
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "set_next_input"
-                      }
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "const": "set_next_input"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "replace": {
+                      "type": "boolean"
                     }
                   },
-                  "then": {
-                    "properties": {
-                      "text": {
-                        "type": "string"
-                      },
-                      "replace": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": ["text", "replace"],
-                    "additionalProperties": false
-                  }
+                  "required": ["source", "text", "replace"],
+                  "additionalProperties": false
                 }, {
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "edit"
-                      }
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "const": "edit"
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "line_number": {
+                      "type": "integer"
                     }
                   },
-                  "then": {
-                    "properties": {
-                      "filename": {
-                        "type": "string"
-                      },
-                      "line_number": {
-                        "type": "integer"
-                      }
-                    },
-                    "required": ["filename", "line_number"],
-                    "additionalProperties": false
-                  }
+                  "required": ["source", "filename", "line_number"],
+                  "additionalProperties": false
                 }, {
-                  "if": {
-                    "properties": {
-                      "source": {
-                        "const": "ask_exit"
-                      }
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "const": "ask_exit"
+                    },
+                    "keepkernel": {
+                      "type": "boolean"
                     }
                   },
-                  "then": {
-                    "properties": {
-                      "keepkernel": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": ["keepkernel"],
-                    "additionalProperties": false
-                  }
+                  "required": ["source", "keepkernel"],
+                  "additionalProperties": false
                 }]
               }
             },
@@ -408,7 +389,16 @@
           "required": ["status", "execution_count"],
           "additionalProperties": false
         }, {
-          "$ref": "#/$defs/error_status"
+          "allOf": [{
+            "$ref": "#/$defs/error_status"
+          }, {
+            "properties": {
+              "execution_count": {
+                "type": "integer"
+             }
+            },
+            "required": ["execution_count"]
+          }]
         }]
       }
     }

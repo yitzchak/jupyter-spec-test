@@ -13,6 +13,27 @@ def dictionary_matches(needle, haystack):
     )
 
 
+def check_message_contents(msg_type, needles, messages):
+    haystacks = [msg["content"] for msg in messages if msg["msg_type"] == msg_type]
+    assert len(needles) == len(
+        haystacks
+    ), f"Expected to receive {len(needles)} {msg_type} messages but received {len(haystacks)} instead."
+    for (needle, haystack) in zip(needles, haystacks):
+        assert dictionary_matches(
+            needle, haystack
+        ), f"Expected a {msg_type} of {needle} but received {haystack} instead."
+
+
+def check_array_contents(needles, haystacks):
+    assert len(needles) == len(
+        haystacks
+    ), f"Expected to receive {len(needles)} items but received {len(haystacks)} instead."
+    for (needle, haystack) in zip(needles, haystacks):
+        assert dictionary_matches(
+            needle, haystack
+        ), f"Expected {needle} but received {haystack} instead."
+
+
 class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
@@ -28,6 +49,12 @@ class Kernel(object):
         self.client.start_channels()
         self.client.wait_for_ready()
 
+    def restart(self):
+        self.kernel.restart_kernel(now=True)
+        self.client = self.kernel.client()
+        self.client.start_channels()
+        self.client.wait_for_ready()
+
     def validate_message(self, msg, source):
         msg_type = msg["header"]["msg_type"]
         self.message_validator.validate(msg)
@@ -35,111 +62,115 @@ class Kernel(object):
         #    assert msg["parent_header"]["msg_id"] in self.pending, "Unknown parent message id."
 
     def read_replies(self, timeout=None, stdin_hook=None, keep_status=False):
-        messages = {}
-        replies = {}
-        idle = {}
+        try:
+            messages = {}
+            replies = {}
+            idle = {}
 
-        if timeout is not None:
-            deadline = time.monotonic() + timeout
-        else:
-            timeout_ms = None
-
-        poller = zmq.Poller()
-
-        iopub_socket = self.client.iopub_channel.socket
-        poller.register(iopub_socket, zmq.POLLIN)
-
-        control_socket = self.client.control_channel.socket
-        poller.register(control_socket, zmq.POLLIN)
-
-        shell_socket = self.client.shell_channel.socket
-        poller.register(shell_socket, zmq.POLLIN)
-
-        stdin_socket = self.client.stdin_channel.socket
-        poller.register(stdin_socket, zmq.POLLIN)
-
-        while len(self.pending) > 0:
             if timeout is not None:
-                timeout = max(0, deadline - time.monotonic())
-                timeout_ms = int(1000 * timeout)
+                deadline = time.monotonic() + timeout
+            else:
+                timeout_ms = None
 
-            events = dict(poller.poll(timeout_ms))
-            print(events)
+            poller = zmq.Poller()
 
-            if not events:
-                raise TimeoutError("Timeout waiting for output")
+            iopub_socket = self.client.iopub_channel.socket
+            poller.register(iopub_socket, zmq.POLLIN)
 
-            if stdin_socket in events:
-                msg = self.client.get_stdin_msg()
-                self.validate_message(msg, "stdin")
-                if (
-                    "msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending
-                ):
-                    assert (
-                        stdin_hook is not None
-                    ), "Input request received but no hook available."
-                    stdin_hook(msg)
-            if shell_socket in events:
-                msg = self.client.get_shell_msg()
-                self.validate_message(msg, "shell")
-                if (
-                    "msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending
-                ):
-                    parent_msg_id = msg["parent_header"]["msg_id"]
-                    assert (
-                        self.pending[parent_msg_id] == "shell"
-                    ), "Received response on shell channel for a control message."
-                    replies[parent_msg_id] = msg
-                    if parent_msg_id in idle:
-                        del self.pending[parent_msg_id]
-            if control_socket in events:
-                msg = self.client.get_control_msg()
-                self.validate_message(msg, "control")
-                if (
-                    "msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending
-                ):
-                    parent_msg_id = msg["parent_header"]["msg_id"]
-                    assert (
-                        self.pending[parent_msg_id] == "control"
-                    ), "Received response on control channel for a shell message."
-                    replies[parent_msg_id] = msg
-                    if parent_msg_id in idle:
-                        del self.pending[parent_msg_id]
-            if iopub_socket in events:
-                msg = self.client.get_iopub_msg()
-                self.validate_message(msg, "iopub")
-                if (
-                    "msg_id" in msg["parent_header"]
-                    and msg["parent_header"]["msg_id"] in self.pending
-                ):
+            control_socket = self.client.control_channel.socket
+            poller.register(control_socket, zmq.POLLIN)
+
+            shell_socket = self.client.shell_channel.socket
+            poller.register(shell_socket, zmq.POLLIN)
+
+            stdin_socket = self.client.stdin_channel.socket
+            poller.register(stdin_socket, zmq.POLLIN)
+
+            while len(self.pending) > 0:
+                if timeout is not None:
+                    timeout = max(0, deadline - time.monotonic())
+                    timeout_ms = int(1000 * timeout)
+
+                events = dict(poller.poll(timeout_ms))
+                print(events)
+
+                if not events:
+                    raise TimeoutError("Timeout waiting for output")
+
+                if stdin_socket in events:
+                    msg = self.client.get_stdin_msg()
+                    self.validate_message(msg, "stdin")
                     if (
-                        msg["parent_header"] is None
-                        or "msg_id" not in msg["parent_header"]
+                        "msg_id" in msg["parent_header"]
+                        and msg["parent_header"]["msg_id"] in self.pending
                     ):
-                        continue
-                    parent_msg_id = msg["parent_header"]["msg_id"]
-                    if parent_msg_id not in messages:
                         assert (
-                            msg["header"]["msg_type"] == "status"
-                            and msg["content"]["execution_state"] == "busy"
-                        )
-                        messages[parent_msg_id] = [msg] if keep_status else []
-                    elif (
-                        msg["header"]["msg_type"] == "status"
-                        and msg["content"]["execution_state"] == "idle"
+                            stdin_hook is not None
+                        ), "Input request received but no hook available."
+                        stdin_hook(msg)
+                if shell_socket in events:
+                    msg = self.client.get_shell_msg()
+                    self.validate_message(msg, "shell")
+                    if (
+                        "msg_id" in msg["parent_header"]
+                        and msg["parent_header"]["msg_id"] in self.pending
                     ):
-                        idle[parent_msg_id] = True
-                        if parent_msg_id in replies:
+                        parent_msg_id = msg["parent_header"]["msg_id"]
+                        assert (
+                            self.pending[parent_msg_id] == "shell"
+                        ), "Received response on shell channel for a control message."
+                        replies[parent_msg_id] = msg
+                        if parent_msg_id in idle:
                             del self.pending[parent_msg_id]
-                        if keep_status:
+                if control_socket in events:
+                    msg = self.client.get_control_msg()
+                    self.validate_message(msg, "control")
+                    if (
+                        "msg_id" in msg["parent_header"]
+                        and msg["parent_header"]["msg_id"] in self.pending
+                    ):
+                        parent_msg_id = msg["parent_header"]["msg_id"]
+                        assert (
+                            self.pending[parent_msg_id] == "control"
+                        ), "Received response on control channel for a shell message."
+                        replies[parent_msg_id] = msg
+                        if parent_msg_id in idle:
+                            del self.pending[parent_msg_id]
+                if iopub_socket in events:
+                    msg = self.client.get_iopub_msg()
+                    self.validate_message(msg, "iopub")
+                    if (
+                        "msg_id" in msg["parent_header"]
+                        and msg["parent_header"]["msg_id"] in self.pending
+                    ):
+                        if (
+                            msg["parent_header"] is None
+                            or "msg_id" not in msg["parent_header"]
+                        ):
+                            continue
+                        parent_msg_id = msg["parent_header"]["msg_id"]
+                        if parent_msg_id not in messages:
+                            assert (
+                                msg["header"]["msg_type"] == "status"
+                                and msg["content"]["execution_state"] == "busy"
+                            )
+                            messages[parent_msg_id] = [msg] if keep_status else []
+                        elif (
+                            msg["header"]["msg_type"] == "status"
+                            and msg["content"]["execution_state"] == "idle"
+                        ):
+                            idle[parent_msg_id] = True
+                            if parent_msg_id in replies:
+                                del self.pending[parent_msg_id]
+                            if keep_status:
+                                messages[parent_msg_id].append(msg)
+                        else:
                             messages[parent_msg_id].append(msg)
-                    else:
-                        messages[parent_msg_id].append(msg)
 
-        return replies, messages
+            return replies, messages
+        except:
+            self.restart()
+            raise
 
     def read_reply(
         self,
@@ -149,11 +180,10 @@ class Kernel(object):
         keep_status=False,
         expected_reply_status=None,
         expected_reply_type=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
     ):
         replies, messages = self.read_replies(
             timeout=timeout, stdin_hook=stdin_hook, keep_status=keep_status
@@ -171,32 +201,20 @@ class Kernel(object):
             assert (
                 my_reply["content"]["status"] == expected_reply_status
             ), f'Expected a reply status of "{expected_reply_status}" but received "{my_reply["content"]["status"]}" instead.'
-        if expected_ename is not None:
+        if expected_reply_ename is not None:
             assert (
-                my_reply["content"]["ename"] == expected_ename
-            ), f'Expected a reply ename of "{expected_ename}" but received "{my_reply["content"]["ename"]}" instead.'
-        if expected_evalue is not None:
+                my_reply["content"]["ename"] == expected_reply_ename
+            ), f'Expected a reply ename of "{expected_reply_ename}" but received "{my_reply["content"]["ename"]}" instead.'
+        if expected_reply_evalue is not None:
             assert (
-                my_reply["content"]["evalue"] == expected_evalue
-            ), f'Expected a reply evalue of "{expected_evalue}" but received "{my_reply["content"]["evalue"]}" instead.'
-        if expected_traceback is not None:
+                my_reply["content"]["evalue"] == expected_reply_evalue
+            ), f'Expected a reply evalue of "{expected_reply_evalue}" but received "{my_reply["content"]["evalue"]}" instead.'
+        if expected_reply_traceback is not None:
             assert (
-                my_reply["content"]["traceback"] == expected_traceback
-            ), f'Expected a reply traceback of "{expected_traceback}" but received "{my_reply["content"]["traceback"]}" instead.'
-        if expected_stdout is not None:
-            assert any(
-                msg["msg_type"] == "stream"
-                and msg["content"]["name"] == "stdout"
-                and msg["content"]["text"] == expected_stdout
-                for msg in my_messages
-            ), f'Did not receive "{expected_stdout}" on stdout stream.'
-        if expected_stderr is not None:
-            assert any(
-                msg["msg_type"] == "stream"
-                and msg["content"]["name"] == "stderr"
-                and msg["content"]["text"] == expected_stderr
-                for msg in my_messages
-            ), f'Did not receive "{expected_stderr}" on stderr stream.'
+                my_reply["content"]["traceback"] == expected_reply_traceback
+            ), f'Expected a reply traceback of "{expected_reply_traceback}" but received "{my_reply["content"]["traceback"]}" instead.'
+        if expected_stream is not None:
+            check_message_contents("stream", expected_stream, my_messages)
         return my_reply, my_messages
 
     def shutdown(self):
@@ -279,13 +297,15 @@ class Kernel(object):
         stdin_hook=None,
         keep_status=False,
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
-        expected_execute_results=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_reply_payload=None,
+        expected_stream=None,
+        expected_execute_result=None,
         expected_display_data=None,
+        expected_update_display_data=None,
+        expected_clear_output=None,
     ):
         msg_id = self.execute(
             code,
@@ -300,49 +320,28 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="execute_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         assert any(
             msg["msg_type"] == "execute_input" and msg["content"]["code"] == code
             for msg in messages
         ), "Expected an execute_input message with the correct code content."
-        if expected_execute_results is not None:
-            execute_results = [
-                msg["content"]
-                for msg in messages
-                if msg["msg_type"] == "execute_result"
-            ]
-            assert len(execute_results) == len(
-                expected_execute_results
-            ), f"Expected to receive {len(expected_execute_results)} execute_result messages but received {len(execute_results)} instead."
-            for (value, expected_value) in zip(
-                execute_results, expected_execute_results
-            ):
-                assert dictionary_matches(
-                    expected_value, value
-                ), f"Expected an execute_results of {expected_value} but received {value} instead."
+        if expected_reply_payload is not None:
+            assert "payload" in reply["content"], "Expected a payload in execute_reply."
+            check_array_contents(expected_reply_payload, reply["content"]["payload"])
+        if expected_execute_result is not None:
+            check_message_contents("execute_result", expected_execute_result, messages)
         if expected_display_data is not None:
-            display_data = [
-                msg["content"] for msg in messages if msg["msg_type"] == "display_data"
-            ]
-            assert len(display_data) == len(
-                expected_display_data
-            ), f"Expected to receive {len(expected_display_data)} display_data messages but received {len(display_data)} instead."
-            for (value, expected_value) in zip(display_data, expected_display_data):
-                assert dictionary_matches(
-                    expected_value, value
-                ), f"Expected a display_data of {expected_value} but received {value} instead."
-        if expected_display_data is not None:
-            for display_data in expected_display_data:
-                assert any(
-                    msg["msg_type"] == "display_data"
-                    and dictionary_matches(display_data, msg["content"])
-                    for msg in messages
-                ), "Did not receive the expected display_data."
+            check_message_contents("display_data", expected_display_data, messages)
+        if expected_update_display_data is not None:
+            check_message_contents(
+                "update_display_data", expected_update_display_data, messages
+            )
+        if expected_clear_output is not None:
+            check_message_contents("clear_output", expected_clear_output, messages)
         return reply, messages
 
     def complete_read_reply(
@@ -354,11 +353,10 @@ class Kernel(object):
         expected_cursor_start=None,
         expected_cursor_end=None,
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
     ):
         msg_id = self.complete(code, cursor_pos=cursor_pos)
         reply, messages = self.read_reply(
@@ -366,11 +364,10 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="complete_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         if expected_matches is not None:
             for match in expected_matches:
@@ -414,11 +411,10 @@ class Kernel(object):
         detail_level=0,
         timeout=None,
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
     ):
         msg_id = self.inspect(code, cursor_pos=cursor_pos, detail_level=detail_level)
         reply, messages = self.read_reply(
@@ -426,11 +422,10 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="inspect_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         return reply, messages
 
@@ -441,11 +436,10 @@ class Kernel(object):
         timeout=None,
         hist_access_type="range",
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
         **kwargs,
     ):
         msg_id = self.history(
@@ -456,11 +450,10 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="history_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         return reply, messages
 
@@ -468,11 +461,10 @@ class Kernel(object):
         self,
         timeout=None,
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
     ):
         msg_id = self.kernel_info()
         reply, messages = self.read_reply(
@@ -480,11 +472,10 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="kernel_info_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         return reply, messages
 
@@ -493,11 +484,10 @@ class Kernel(object):
         target_name=None,
         timeout=None,
         expected_reply_status=None,
-        expected_ename=None,
-        expected_evalue=None,
-        expected_traceback=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_reply_ename=None,
+        expected_reply_evalue=None,
+        expected_reply_traceback=None,
+        expected_stream=None,
     ):
         msg_id = self.comm_info(target_name=target_name)
         reply, messages = self.read_reply(
@@ -505,11 +495,10 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="comm_info_reply",
             expected_reply_status=expected_reply_status,
-            expected_ename=expected_ename,
-            expected_evalue=expected_evalue,
-            expected_traceback=expected_traceback,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_reply_ename=expected_reply_ename,
+            expected_reply_evalue=expected_reply_evalue,
+            expected_reply_traceback=expected_reply_traceback,
+            expected_stream=expected_stream,
         )
         return reply, messages
 
@@ -519,8 +508,7 @@ class Kernel(object):
         timeout=None,
         expected_reply_status=None,
         expected_indent=None,
-        expected_stdout=None,
-        expected_stderr=None,
+        expected_stream=None,
     ):
         msg_id = self.is_complete(code)
         reply, messages = self.read_reply(
@@ -528,8 +516,7 @@ class Kernel(object):
             timeout=timeout,
             expected_reply_type="is_complete_reply",
             expected_reply_status=expected_reply_status,
-            expected_stdout=expected_stdout,
-            expected_stderr=expected_stderr,
+            expected_stream=expected_stream,
         )
         if expected_indent is not None:
             assert (
