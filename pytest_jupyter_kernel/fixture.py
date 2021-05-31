@@ -414,6 +414,9 @@ class Kernel(object):
         expected_reply_ename=None,
         expected_reply_evalue=None,
         expected_reply_traceback=None,
+        expected_reply_found=None,
+        expected_reply_data=None,
+        expected_reply_metadata=None,
         expected_stream=None,
     ):
         msg_id = self.inspect(code, cursor_pos=cursor_pos, detail_level=detail_level)
@@ -427,6 +430,18 @@ class Kernel(object):
             expected_reply_traceback=expected_reply_traceback,
             expected_stream=expected_stream,
         )
+        if expected_reply_found is not None:
+            assert (
+                reply["content"]["found"] == expected_reply_found
+            ), f'Expected a reply found of {expected_reply_found} but received {reply["content"]["found"]} instead.'
+        if expected_reply_data is not None:
+            assert dictionary_matches(
+                expected_reply_data, reply["content"]["data"]
+            ), f'Expected a reply data of {expected_reply_data} but received {reply["content"]["data"]} instead.'
+        if expected_reply_metadata is not None:
+            assert dictionary_matches(
+                expected_reply__metadata, reply["content"]["_metadata"]
+            ), f'Expected a reply data of {expected_reply__metadata} but received {reply["content"]["_metadata"]} instead.'
         return reply, messages
 
     def history_read_reply(
