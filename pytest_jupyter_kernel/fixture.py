@@ -32,33 +32,6 @@ def matches(needle, haystack):
     return needle == haystack
 
 
-def dictionary_matches(needle, haystack):
-    return all(
-        key in haystack and haystack[key] == value for key, value in needle.items()
-    )
-
-
-def check_message_contents(msg_type, needles, messages):
-    haystacks = [msg["content"] for msg in messages if msg["msg_type"] == msg_type]
-    assert len(needles) == len(
-        haystacks
-    ), f"Expected to receive {len(needles)} {msg_type} messages but received {len(haystacks)} instead."
-    for (needle, haystack) in zip(needles, haystacks):
-        assert dictionary_matches(
-            needle, haystack
-        ), f"Expected a {msg_type} of {needle} but received {haystack} instead."
-
-
-def check_array_contents(needles, haystacks):
-    assert len(needles) == len(
-        haystacks
-    ), f"Expected to receive {len(needles)} items but received {len(haystacks)} instead."
-    for (needle, haystack) in zip(needles, haystacks):
-        assert dictionary_matches(
-            needle, haystack
-        ), f"Expected {needle} but received {haystack} instead."
-
-
 class Kernel(object):
     def __init__(self, kernel_name):
         self.kernel = jupyter_client.KernelManager(kernel_name=kernel_name)
@@ -203,12 +176,6 @@ class Kernel(object):
         timeout=None,
         stdin_hook=None,
         keep_status=False,
-        expected_reply_status=None,
-        expected_reply_type=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -220,28 +187,6 @@ class Kernel(object):
         ), "Expected a single reply with a msg_id of {msg_id}."
         my_reply = replies[msg_id]
         my_messages = messages[msg_id] if msg_id in messages else []
-        if expected_reply_type is not None:
-            assert (
-                my_reply["msg_type"] == expected_reply_type
-            ), 'Expected a message_type of "{expected_reply_type}" but received "{my_reply["msg_type"]}" instead.'
-        if expected_reply_status is not None:
-            assert (
-                my_reply["content"]["status"] == expected_reply_status
-            ), f'Expected a reply status of "{expected_reply_status}" but received "{my_reply["content"]["status"]}" instead.'
-        if expected_reply_ename is not None:
-            assert (
-                my_reply["content"]["ename"] == expected_reply_ename
-            ), f'Expected a reply ename of "{expected_reply_ename}" but received "{my_reply["content"]["ename"]}" instead.'
-        if expected_reply_evalue is not None:
-            assert (
-                my_reply["content"]["evalue"] == expected_reply_evalue
-            ), f'Expected a reply evalue of "{expected_reply_evalue}" but received "{my_reply["content"]["evalue"]}" instead.'
-        if expected_reply_traceback is not None:
-            assert (
-                my_reply["content"]["traceback"] == expected_reply_traceback
-            ), f'Expected a reply traceback of "{expected_reply_traceback}" but received "{my_reply["content"]["traceback"]}" instead.'
-        if expected_stream is not None:
-            check_message_contents("stream", expected_stream, my_messages)
         if expected_reply is not None:
             for expected in expected_reply:
                 assert matches(
@@ -339,17 +284,6 @@ class Kernel(object):
         timeout=None,
         stdin_hook=None,
         keep_status=False,
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_reply_payload=None,
-        expected_stream=None,
-        expected_execute_result=None,
-        expected_display_data=None,
-        expected_update_display_data=None,
-        expected_clear_output=None,
-        expected_comm_open=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -364,31 +298,11 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "execute_reply"}],
             expected_messages=([] if expected_messages is None else expected_messages)
             + [[{"msg_type": "execute_input", "content": {"code": code}}]],
         )
-        if expected_reply_payload is not None:
-            assert "payload" in reply["content"], "Expected a payload in execute_reply."
-            check_array_contents(expected_reply_payload, reply["content"]["payload"])
-        if expected_execute_result is not None:
-            check_message_contents("execute_result", expected_execute_result, messages)
-        if expected_display_data is not None:
-            check_message_contents("display_data", expected_display_data, messages)
-        if expected_update_display_data is not None:
-            check_message_contents(
-                "update_display_data", expected_update_display_data, messages
-            )
-        if expected_clear_output is not None:
-            check_message_contents("clear_output", expected_clear_output, messages)
-        if expected_comm_open is not None:
-            check_message_contents("comm_open", expected_comm_open, messages)
         return reply, messages
 
     def complete_read_reply(
@@ -396,14 +310,6 @@ class Kernel(object):
         code,
         cursor_pos=None,
         timeout=None,
-        expected_matches=None,
-        expected_cursor_start=None,
-        expected_cursor_end=None,
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -411,49 +317,10 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="complete_reply",
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "complete_reply"}],
             expected_messages=expected_messages,
         )
-        if expected_matches is not None:
-            for match in expected_matches:
-                assert any(
-                    text == match["text"] for text in reply["content"]["matches"]
-                ), f'Expected a match of "{match["text"]}" in matches.'
-                if "type" in match:
-                    assert (
-                        "_jupyter_types_experimental" in reply["content"]["metadata"]
-                    ), 'Match types expected in reply, but no key "_jupyter_types_experimental" found in metadata.'
-                    t = next(
-                        (
-                            t
-                            for t in reply["content"]["metadata"][
-                                "_jupyter_types_experimental"
-                            ]
-                            if t["text"] == match["text"]
-                        ),
-                        None,
-                    )
-                    assert (
-                        t is not None
-                    ), 'Expected a type entry for the text "{match["text"]}".'
-                    assert (
-                        t["type"] == match["type"]
-                    ), f'Expected the type of "{match["text"]}" to be "{match["type"]}" but found "{t["type"]}" instead.'
-        if expected_cursor_start is not None:
-            assert (
-                reply["content"]["cursor_start"] == expected_cursor_start
-            ), f'Expected a cursor_start of {expected_cursor_start} but received {reply["content"]["cursor_start"]}.'
-        if expected_cursor_end is not None:
-            assert (
-                reply["content"]["cursor_end"] == expected_cursor_end
-            ), f'Expected a cursor_end of {expected_cursor_end} but received {reply["content"]["cursor_end"]}.'
         return reply, messages
 
     def inspect_read_reply(
@@ -462,14 +329,6 @@ class Kernel(object):
         cursor_pos=None,
         detail_level=0,
         timeout=None,
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_reply_found=None,
-        expected_reply_data=None,
-        expected_reply_metadata=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -477,28 +336,10 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="inspect_reply",
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "inspect_reply"}],
             expected_messages=expected_messages,
         )
-        if expected_reply_found is not None:
-            assert (
-                reply["content"]["found"] == expected_reply_found
-            ), f'Expected a reply found of {expected_reply_found} but received {reply["content"]["found"]} instead.'
-        if expected_reply_data is not None:
-            assert dictionary_matches(
-                expected_reply_data, reply["content"]["data"]
-            ), f'Expected a reply data of {expected_reply_data} but received {reply["content"]["data"]} instead.'
-        if expected_reply_metadata is not None:
-            assert dictionary_matches(
-                expected_reply__metadata, reply["content"]["_metadata"]
-            ), f'Expected a reply data of {expected_reply__metadata} but received {reply["content"]["_metadata"]} instead.'
         return reply, messages
 
     def history_read_reply(
@@ -507,12 +348,6 @@ class Kernel(object):
         output=False,
         timeout=None,
         hist_access_type="range",
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_stream=None,
-        expected_reply_history=None,
         expected_reply=None,
         expected_messages=None,
         **kwargs,
@@ -523,28 +358,15 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="history_reply",
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "history_reply"}],
             expected_messages=expected_messages,
         )
-        if expected_reply_history is not None:
-            check_array_contents(expected_reply_history, reply["content"]["history"])
         return reply, messages
 
     def kernel_info_read_reply(
         self,
         timeout=None,
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -552,12 +374,6 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="kernel_info_reply",
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "kernel_info_reply"}],
             expected_messages=expected_messages,
@@ -568,11 +384,6 @@ class Kernel(object):
         self,
         target_name=None,
         timeout=None,
-        expected_reply_status=None,
-        expected_reply_ename=None,
-        expected_reply_evalue=None,
-        expected_reply_traceback=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -580,12 +391,6 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="comm_info_reply",
-            expected_reply_status=expected_reply_status,
-            expected_reply_ename=expected_reply_ename,
-            expected_reply_evalue=expected_reply_evalue,
-            expected_reply_traceback=expected_reply_traceback,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "comm_info_reply"}],
             expected_messages=expected_messages,
@@ -596,9 +401,6 @@ class Kernel(object):
         self,
         code,
         timeout=None,
-        expected_reply_status=None,
-        expected_indent=None,
-        expected_stream=None,
         expected_reply=None,
         expected_messages=None,
     ):
@@ -606,18 +408,10 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
-            expected_reply_type="is_complete_reply",
-            expected_reply_status=expected_reply_status,
-            expected_stream=expected_stream,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "is_complete_reply"}],
             expected_messages=expected_messages,
         )
-        if expected_indent is not None:
-            assert (
-                reply["content"]["indent"] == expected_indent
-            ), f'Expected an reply with an indent of "{expected_indent}" but '
-            'received "{reply["content"]["indent"]}" instead.'
         return reply, messages
 
 
