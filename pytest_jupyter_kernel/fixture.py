@@ -3,6 +3,7 @@ import jsonschema
 import jupyter_client
 import os
 import pytest
+import pprint
 import time
 import zmq
 
@@ -24,12 +25,46 @@ def matches(needle, haystack):
             if not matches(n, h):
                 return False
         return True
-    if isinstance(needle, set):
+    if isinstance(needle, (set, tuple)):
         for n in needle:
             if not any(matches(n, h) for h in haystack):
                 return False
         return True
     return needle == haystack
+
+
+def assert_matches(needle, haystack, env, ref):
+    if isinstance(needle, type):
+        assert isinstance(
+            haystack, needle
+        ), f"Expected {ref} in the following message to be of type {pprint.pformat(needle)}.\n\t{pprint.pformat(env)}"
+    elif isinstance(needle, dict):
+        assert isinstance(
+            haystack, dict
+        ), f"Expected {ref} in the following message to be an object.\n\t{pprint.pformat(env)}"
+        for key, value in needle.items():
+            assert (
+                key in haystack
+            ), f"Expected {ref} to be present following message.\n\t{pprint.pformat(env)}"
+            assert_matches(value, haystack[key], env, f'{ref}["{key}"]')
+    elif isinstance(needle, list):
+        assert isinstance(
+            haystack, list
+        ), f"Expected {ref} in the following message to be an array.\n\t{pprint.pformat(env)}"
+        assert len(needle) == len(
+            haystack
+        ), f"Expected {ref} in the following message to have a length of {len(haystack)}.\n\t{pprint.pformat(env)}"
+        for (i, n, h) in zip(range(len(needle)), needle, haystack):
+            assert_matches(n, h, env, f"{ref}[{i}]")
+    elif isinstance(needle, (set, tuple)):
+        for n in needle:
+            assert any(
+                matches(n, h) for h in haystack
+            ), f"Expected {ref} in\n\t{pprint.pformat(env)}\nto contain\n\t{pprint.pformat(n)}"
+    else:
+        assert (
+            needle == haystack
+        ), f"Expected {ref} in\n\t{pprint.pformat(env)}\nto equal\n\t{pprint.pformat(needle)}"
 
 
 class Kernel(object):
@@ -90,7 +125,6 @@ class Kernel(object):
                     timeout_ms = int(1000 * timeout)
 
                 events = dict(poller.poll(timeout_ms))
-                print(events)
 
                 if not events:
                     raise TimeoutError("Timeout waiting for output")
@@ -158,7 +192,10 @@ class Kernel(object):
                             and msg["content"]["execution_state"] == "idle"
                         ):
                             idle[parent_msg_id] = True
-                            if parent_msg_id in replies:
+                            if (
+                                parent_msg_id in replies
+                                or self.pending[parent_msg_id] is "iopub"
+                            ):
                                 del self.pending[parent_msg_id]
                             if keep_status:
                                 messages[parent_msg_id].append(msg)
@@ -178,20 +215,22 @@ class Kernel(object):
         keep_status=False,
         expected_reply=None,
         expected_messages=None,
+        need_reply=False,
     ):
         replies, messages = self.read_replies(
             timeout=timeout, stdin_hook=stdin_hook, keep_status=keep_status
         )
-        assert (
-            len(replies) == 1 and msg_id in replies
-        ), "Expected a single reply with a msg_id of {msg_id}."
-        my_reply = replies[msg_id]
+        if need_reply:
+            assert (
+                len(replies) == 1 and msg_id in replies
+            ), "Expected a single reply with a msg_id of {msg_id}."
+        else:
+            assert len(replies) == 0, "Expected no replies."
+        my_reply = replies[msg_id] if msg_id in replies else None
         my_messages = messages[msg_id] if msg_id in messages else []
         if expected_reply is not None:
             for expected in expected_reply:
-                assert matches(
-                    expected, my_reply
-                ), f"Expected {expected} but received {my_reply} instead."
+                assert_matches(expected, my_reply, my_reply, "message")
         if expected_messages is not None:
             for expected_group in expected_messages:
                 index = 0
@@ -266,6 +305,13 @@ class Kernel(object):
         self.pending[msg_id] = "shell"
         return msg_id
 
+    def comm_msg(self, comm_id=None, data=None):
+        msg = self.client.session.msg("comm_msg", dict(comm_id=comm_id, data=data))
+        msg_id = msg["header"]["msg_id"]
+        self.client.shell_channel.send(msg)
+        self.pending[msg_id] = "iopub"
+        return msg_id
+
     def is_complete(self, code):
         msg_id = self.client.is_complete(code)
         self.pending[msg_id] = "shell"
@@ -298,6 +344,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "execute_reply"}],
             expected_messages=([] if expected_messages is None else expected_messages)
@@ -317,6 +364,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "complete_reply"}],
             expected_messages=expected_messages,
@@ -336,6 +384,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "inspect_reply"}],
             expected_messages=expected_messages,
@@ -358,6 +407,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "history_reply"}],
             expected_messages=expected_messages,
@@ -374,6 +424,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "kernel_info_reply"}],
             expected_messages=expected_messages,
@@ -391,8 +442,20 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "comm_info_reply"}],
+            expected_messages=expected_messages,
+        )
+        return reply, messages
+
+    def comm_msg_read_reply(
+        self, comm_id=None, data=None, timeout=None, expected_messages=None
+    ):
+        msg_id = self.comm_msg(comm_id=comm_id, data=data)
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
             expected_messages=expected_messages,
         )
         return reply, messages
@@ -408,6 +471,7 @@ class Kernel(object):
         reply, messages = self.read_reply(
             msg_id,
             timeout=timeout,
+            need_reply=True,
             expected_reply=([] if expected_reply is None else expected_reply)
             + [{"msg_type": "is_complete_reply"}],
             expected_messages=expected_messages,
