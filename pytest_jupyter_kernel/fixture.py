@@ -305,8 +305,24 @@ class Kernel(object):
         self.pending[msg_id] = "shell"
         return msg_id
 
+    def comm_open(self, comm_id=None, target_name=None, data=None):
+        msg = self.client.session.msg(
+            "comm_open", dict(comm_id=comm_id, target_name=target_name, data=data)
+        )
+        msg_id = msg["header"]["msg_id"]
+        self.client.shell_channel.send(msg)
+        self.pending[msg_id] = "iopub"
+        return msg_id
+
     def comm_msg(self, comm_id=None, data=None):
         msg = self.client.session.msg("comm_msg", dict(comm_id=comm_id, data=data))
+        msg_id = msg["header"]["msg_id"]
+        self.client.shell_channel.send(msg)
+        self.pending[msg_id] = "iopub"
+        return msg_id
+
+    def comm_close(self, comm_id=None, data=None):
+        msg = self.client.session.msg("comm_close", dict(comm_id=comm_id, data=data))
         msg_id = msg["header"]["msg_id"]
         self.client.shell_channel.send(msg)
         self.pending[msg_id] = "iopub"
@@ -449,6 +465,22 @@ class Kernel(object):
         )
         return reply, messages
 
+    def comm_open_read_reply(
+        self,
+        comm_id=None,
+        target_name=None,
+        data=None,
+        timeout=None,
+        expected_messages=None,
+    ):
+        msg_id = self.comm_open(comm_id=comm_id, target_name=target_name, data=data)
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_messages=expected_messages,
+        )
+        return messages
+
     def comm_msg_read_reply(
         self, comm_id=None, data=None, timeout=None, expected_messages=None
     ):
@@ -458,7 +490,18 @@ class Kernel(object):
             timeout=timeout,
             expected_messages=expected_messages,
         )
-        return reply, messages
+        return messages
+
+    def comm_close_read_reply(
+        self, comm_id=None, data=None, timeout=None, expected_messages=None
+    ):
+        msg_id = self.comm_close(comm_id=comm_id, data=data)
+        reply, messages = self.read_reply(
+            msg_id,
+            timeout=timeout,
+            expected_messages=expected_messages,
+        )
+        return messages
 
     def is_complete_read_reply(
         self,
