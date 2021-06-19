@@ -241,7 +241,7 @@ class Kernel(object):
                         index += 1
                 assert index == len(
                     expected_group
-                ), f"Not able to match the messages {expected_group} to {messages}."
+                ), f"Not able to match the messages {expected_group} to {my_messages}."
         return my_reply, my_messages
 
     def shutdown(self):
