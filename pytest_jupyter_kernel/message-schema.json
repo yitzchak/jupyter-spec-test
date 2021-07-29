@@ -638,6 +638,9 @@
             "banner": {
               "type": "string"
             },
+            "debugger": {
+              "type": "boolean"
+            },
             "help_links": {
               "type": "array",
               "items": {
